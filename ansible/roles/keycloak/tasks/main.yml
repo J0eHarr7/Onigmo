@@ -1,0 +1,86 @@
+# ansible/roles/keycloak/tasks/main.yml
+- name: Create Keycloak directory
+  file: path=/opt/box/keycloak state=directory
+
+- name: Template realm export
+  template:
+    src: realm-box.json.j2
+    dest: /opt/box/keycloak/realm-box.json
+
+- name: Deploy Keycloak container
+  community.docker.docker_container:
+    name: keycloak
+    image: "quay.io/keycloak/keycloak:{{ keycloak_version }}"
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "8080:8080"
+    env:
+      KEYCLOAK_ADMIN:          "{{ keycloak_admin_user }}"
+      KEYCLOAK_ADMIN_PASSWORD: "{{ keycloak_admin_password }}"
+      KC_HTTP_ENABLED:         "true"
+      KC_HOSTNAME:             "{{ box_ip }}"
+      KC_HOSTNAME_STRICT:      "false"
+    command: ["start-dev", "--import-realm"]
+    volumes:
+      - "/opt/box/keycloak/realm-box.json:/opt/keycloak/data/import/realm-box.json"
+
+- name: Wait for Keycloak to be ready
+  uri:
+    url: "http://localhost:8080/realms/master"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 30
+  delay: 10
+
+- name: Get Keycloak admin access token
+  uri:
+    url: "http://localhost:8080/realms/master/protocol/openid-connect/token"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      client_id: admin-cli
+      username: "{{ keycloak_admin_user }}"
+      password: "{{ keycloak_admin_password }}"
+    status_code: 200
+  register: keycloak_admin_login
+  no_log: true
+
+- name: Get Keycloak realm configuration
+  uri:
+    url: "http://localhost:8080/admin/realms/{{ keycloak_realm }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_admin_login.json.access_token }}"
+    status_code: 200
+  register: keycloak_realm_config
+
+- name: Deploy MailHog (fake SMTP)
+  community.docker.docker_container:
+    name: mailhog
+    image: mailhog/mailhog
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+- name: Configure Keycloak SMTP to use MailHog
+  uri:
+    url: "http://localhost:8080/admin/realms/{{ keycloak_realm }}"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ keycloak_admin_login.json.access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ keycloak_realm_config.json | combine({'smtpServer': {
+      'host': '10.0.1.4',
+      'port': '1025',
+      'from': 'keycloak@box.local',
+      'ssl': 'false',
+      'starttls': 'false',
+      'auth': 'false'
+    }}) }}"
+    status_code: 204

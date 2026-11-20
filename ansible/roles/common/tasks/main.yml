@@ -1,0 +1,53 @@
+# ansible/roles/common/tasks/main.yml
+- name: Update apt cache
+  apt: update_cache=yes cache_valid_time=3600
+
+- name: Install base packages
+  apt:
+    name:
+      - curl
+      - git
+      - python3-pip
+      - jq
+    state: present
+
+- name: Create /opt/box
+  file: path=/opt/box state=directory mode=0755
+
+- name: Ensure git group exists
+  group:
+    name: git
+    state: present
+
+- name: Ensure git user exists
+  user:
+    name: git
+    group: git
+    home: /home/git
+    shell: /bin/bash
+    create_home: true
+    state: present
+
+- name: Ensure /home/git exists
+  file:
+    path: /home/git
+    state: directory
+    owner: git
+    group: git
+    mode: '0755'
+
+- name: Write user.txt flag
+  copy:
+    content: "{{ user_flag }}\n"
+    dest: /home/git/user.txt
+    owner: git
+    group: git
+    mode: '0400'
+
+- name: Write root.txt flag
+  copy:
+    content: "THM{0n1gm0_0v3rfl0w_t0_r00t}\n"
+    dest: /root/root.txt
+    owner: root
+    group: root
+    mode: '0400'

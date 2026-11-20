@@ -1,0 +1,39 @@
+{
+  "realm": "box",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "users": [
+    {
+      "username": "gitadmin",
+      "email": "gitadmin@box.local",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Git",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Sup3rS3cur3Pass!",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "gitlab",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "gitlab-secret-change-me",
+      "redirectUris": ["http://{{ box_ip }}/users/auth/openid_connect/callback"],
+      "webOrigins": ["+"],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    }
+  ]
+}

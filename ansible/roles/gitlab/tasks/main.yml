@@ -1,0 +1,155 @@
+# ansible/roles/gitlab/tasks/main.yml
+- name: Create GitLab config directory
+  file: path=/opt/box/gitlab/config state=directory
+
+- name: Template gitlab.rb
+  template:
+    src: gitlab.rb.j2
+    dest: /opt/box/gitlab/config/gitlab.rb
+
+- name: Deploy GitLab CE 19.4.1 (vulnerable)
+  community.docker.docker_container:
+    name: gitlab
+    image: "gitlab/gitlab-ce:{{ gitlab_version }}"
+    state: started
+    restart_policy: unless-stopped
+    hostname: "{{ box_ip }}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "2222:22"
+    etc_hosts:
+      "{{ box_ip }}": "10.0.1.4"      # ← resolves public IP to internal inside container
+    env:
+      GITLAB_OMNIBUS_CONFIG: "external_url 'http://{{ box_ip }}'"
+      GITLAB_ROOT_PASSWORD:  "{{ gitlab_root_password }}"
+    volumes:
+      - "/opt/box/gitlab/config:/etc/gitlab"
+      - "/opt/box/gitlab/logs:/var/log/gitlab"
+      - "/opt/box/gitlab/data:/var/opt/gitlab"
+    shm_size: "256m"
+
+- name: Wait for GitLab to be ready (takes 3-5 min)
+  uri:
+    url: "http://localhost"
+    status_code: [200, 302]
+    return_content: false
+    follow_redirects: false
+  register: result
+  until: result.status in [200, 302]
+  retries: 60
+  delay: 15
+
+- name: Configure GitLab OIDC + create gitadmin user via API
+  shell: |
+    docker exec gitlab gitlab-rails runner "
+      # Create gitadmin user (will be the SSO target)
+      user = User.find_or_create_by(email: 'gitadmin@box.local') do |u|
+        u.name     = 'gitadmin'
+        u.username = 'gitadmin'
+        u.password = SecureRandom.hex(32)   # locked — only SSO login works
+        u.confirmed_at = Time.now
+        u.admin = true
+      end
+
+      # Create the public project the exploit will target
+      project = Projects::CreateService.new(user, {
+        name: 'devops-configs',
+        path: 'devops-configs',
+        visibility_level: Gitlab::VisibilityLevel::PUBLIC,
+        description: 'Internal DevOps configuration repository'
+      }).execute
+
+      puts 'Setup complete. Project ID: ' + project.id.to_s
+    "
+  register: gitlab_setup
+  changed_when: true
+
+- name: Print project ID
+  debug: msg="{{ gitlab_setup.stdout }}"
+
+- name: Write user.txt flag inside GitLab container for git user
+  become: yes
+  shell: |
+    docker exec gitlab sh -c 'install -d -o git -g git -m 0755 /home/git; umask 077; printf "%s\\n" "{{ user_flag }}" > /home/git/user.txt; chown git:git /home/git/user.txt; chmod 0400 /home/git/user.txt'
+  changed_when: true
+
+# ---------------------------------------------------------------------------
+# Callback infrastructure for CVE-2026-97229 (GitLab CI-lint RCE).
+#
+# The PoC starts its stage-2 HTTP listener on 127.0.0.1:8000 of the machine
+# that runs it (the Ansible control node). GitLab lives in a container on the
+# box, and players have NO SSH access to the box, so they cannot set up the
+# reverse tunnel themselves. Ansible provisions all of it instead:
+#
+#   1. sshd accepts remote forwards on 0.0.0.0  (GatewayPorts yes)
+#   2. The GitLab container maps the 1-letter host `l` to the docker gateway
+#      (e.g. 172.17.0.1), which is how the container reaches the box's :8000
+#   3. A reverse tunnel  box:8000 -> control-node:8000  is opened FROM the
+#      control node (which does have SSH access via the inventory key)
+#
+# Result: the PoC's `--callback-url l:8000` works unchanged.
+#   - URL is 6 bytes (<= 16-byte first-stage limit in the 28-byte path)
+#   - no "//" -> no empty Git path components
+# ---------------------------------------------------------------------------
+
+- name: Permit SSH remote forwards to bind on all interfaces
+  become: yes
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?GatewayPorts\b'
+    line: 'GatewayPorts yes'
+  register: gateway_ports
+
+- name: Restart sshd so GatewayPorts takes effect
+  become: yes
+  shell: '(systemctl restart ssh && echo ok) || (systemctl restart sshd && echo ok) || (service ssh restart && echo ok)'
+  when: gateway_ports.changed
+
+- name: Discover the Docker gateway IP reachable from the GitLab container
+  become: yes
+  shell: docker exec gitlab ip route | awk '/default/ {print $3}'
+  register: gitlab_gateway
+  changed_when: false
+
+- name: Point callback hostname 'l' at the Docker gateway inside GitLab
+  # /etc/hosts is bind-mounted in the container, so sed -i fails with
+  # "Device or resource busy" -> rewrite it in place with cat.
+  become: yes
+  shell: |
+    docker exec gitlab sh -c '
+      grep -v "^127\.0\.0\.1 l$" /etc/hosts > /tmp/hosts.new
+      cat /tmp/hosts.new > /etc/hosts
+      grep -q "{{ gitlab_gateway.stdout }} l" /etc/hosts || echo "{{ gitlab_gateway.stdout }} l" >> /etc/hosts
+    '
+  changed_when: false
+
+- name: Remove any stale callback reverse tunnel (control node)
+  delegate_to: localhost
+  become: no
+  shell: |
+    for pid in $(ps -eo pid,args | awk '$2 == "ssh" || $2 ~ /\/ssh$/ {print $1}'); do
+      if ps -p "$pid" -o args= 2>/dev/null | grep -q -- '-R.*8000'; then
+        kill "$pid" 2>/dev/null || true
+      fi
+    done
+  changed_when: false
+
+- name: Open callback tunnel box:8000 -> control-node:8000
+  # Runs FROM the control node, so players never need to SSH into the box.
+  delegate_to: localhost
+  become: no
+  command: >-
+    ssh -o StrictHostKeyChecking=no
+        -o ExitOnForwardFailure=yes
+        -o BatchMode=yes
+        -i {{ lookup('env', 'HOME') }}/.ssh/id_rsa
+        -R *:8000:localhost:8000
+        {{ ansible_user }}@{{ inventory_hostname }} -N -f
+
+- name: Callback ready
+  debug:
+    msg: >-
+      Callback ready. Run the PoC with --callback-url 'l:8000'
+      (listener on this control node at localhost:8000).
+      Reset the GitLab main branch before every exploit run.

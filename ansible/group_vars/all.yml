@@ -1,0 +1,16 @@
+# ansible/group_vars/all.yml
+box_ip: "{{ ansible_host }}"
+
+keycloak_admin_user:     "admin"
+keycloak_admin_password: "admin"
+keycloak_realm:          "box"
+keycloak_version:        "26.5.0"          # vulnerable to CVE-2026-18963
+
+gitlab_version:          "19.4.1-ce.0"    # confirmed vulnerable by Rapid7
+gitlab_root_password:    "boxrootpass123"
+gitlab_external_url:     "http://{{ box_ip }}"
+user_flag:               "THM{k3ycl0ak_r3s3t_byp4ss_ftw}"
+
+# OIDC / SSO bridge values
+gitlab_oidc_client_id:     "gitlab"
+gitlab_oidc_client_secret: "gitlab-secret-change-me"

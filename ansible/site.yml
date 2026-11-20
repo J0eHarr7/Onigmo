@@ -1,0 +1,8 @@
+# ansible/site.yml
+- hosts: box
+  become: true
+  roles:
+    - common
+    - docker
+    - keycloak
+    - gitlab
