@@ -76,6 +76,17 @@ resource "azurerm_network_security_group" "box" {
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
+  security_rule {
+    name                       = "Quiz"
+    priority                   = 125
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "5000"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
   # Callback listener port — player's netcat/listener for the RCE output
   security_rule {
     name                       = "Callback"

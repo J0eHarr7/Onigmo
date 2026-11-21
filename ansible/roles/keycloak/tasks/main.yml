@@ -34,6 +34,39 @@
   retries: 30
   delay: 10
 
+- name: Ensure LOTR users exist and passwords are up to date
+  shell: |
+    set -euo pipefail
+
+    docker exec keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+      --server http://localhost:8080 \
+      --realm master \
+      --user "{{ keycloak_admin_user }}" \
+      --password "{{ keycloak_admin_password }}" >/dev/null
+
+    while IFS=$'\t' read -r username password; do
+      existing="$(docker exec keycloak /opt/keycloak/bin/kcadm.sh get users -r "{{ keycloak_realm }}" -q "username=${username}" -q exact=true)"
+
+      if ! grep -q '"username" : "'"${username}"'"' <<< "${existing}"; then
+        docker exec keycloak /opt/keycloak/bin/kcadm.sh create users -r "{{ keycloak_realm }}" \
+          -s "username=${username}" \
+          -s "email=${username}@box.local" \
+          -s "enabled=true" \
+          -s "emailVerified=true" \
+          -s "firstName=LOTR" \
+          -s "lastName=Player" >/dev/null
+      fi
+
+      docker exec keycloak /opt/keycloak/bin/kcadm.sh set-password -r "{{ keycloak_realm }}" \
+        --username "${username}" \
+        --new-password "${password}" \
+        --temporary=false >/dev/null
+    done < <(printf '%s' '{{ keycloak_lotr_users | to_json }}' | jq -r '.[] | [.username, .password] | @tsv')
+  args:
+    executable: /bin/bash
+  no_log: true
+  changed_when: true
+
 - name: Get Keycloak admin access token
   uri:
     url: "http://localhost:8080/realms/master/protocol/openid-connect/token"

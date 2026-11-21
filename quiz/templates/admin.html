@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Admin — LOTR Quiz{% endblock %}
+
+{% block content %}
+{% if not authed %}
+<!-- Admin login -->
+<div class="row justify-content-center mt-5">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">🔐 Admin Access</div>
+      <div class="card-body p-4">
+        {% if error %}
+        <div class="alert" style="background:rgba(139,26,26,.3);border:1px solid #8b1a1a;color:#e88;border-radius:3px;font-size:.85rem;padding:.6rem 1rem">
+          {{ error }}
+        </div>
+        {% endif %}
+        <form method="POST" action="/admin">
+          <div class="mb-3">
+            <label class="mb-1">ADMIN PASSWORD</label>
+            <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-gold w-100">Enter →</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- Admin dashboard -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="font-lotr mb-0" style="color:var(--gold);font-size:1.3rem">Admin Dashboard</h2>
+    <small style="color:var(--muted)">All 48 teams · credentials · scores</small>
+  </div>
+  <a href="/admin/logout" class="btn btn-outline-gold btn-sm">Logout</a>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+  {% set done = stats['done'] or 0 %}
+  {% set total = 48 %}
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div style="font-size:2rem;color:var(--gold);font-family:'Cinzel',serif">{{ done }}</div>
+      <small style="color:var(--muted)">Completed</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div style="font-size:2rem;color:var(--gold);font-family:'Cinzel',serif">{{ total - done }}</div>
+      <small style="color:var(--muted)">Pending</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div style="font-size:2rem;color:var(--gold);font-family:'Cinzel',serif">{{ stats['top_score'] or '—' }}</div>
+      <small style="color:var(--muted)">Top Score</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div style="font-size:2rem;color:var(--gold);font-family:'Cinzel',serif">
+        {% if stats['avg_score'] %}{{ '%.1f'|format(stats['avg_score']) }}{% else %}—{% endif %}
+      </div>
+      <small style="color:var(--muted)">Avg Score</small>
+    </div>
+  </div>
+</div>
+
+<!-- Teams table -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center py-2">
+    <span>All Teams</span>
+    <input type="text" id="search" placeholder="Filter…"
+           class="form-control form-control-sm"
+           style="max-width:200px;font-size:.8rem" oninput="filterTable()">
+  </div>
+  <div class="card-body p-0" style="overflow-x:auto">
+    <table class="table table-sm mb-0" id="teams-table">
+      <thead>
+        <tr>
+          <th style="padding-left:1rem">ID</th>
+          <th>TEAM LOGIN</th>
+          <th>PASS</th>
+          <th>LOTR USERNAME</th>
+          <th>LOTR QUOTE</th>
+          <th>SCORE</th>
+          <th>STATUS</th>
+          <th style="padding-right:1rem">COMPLETED AT</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in teams %}
+        <tr>
+          <td style="padding-left:1rem;color:var(--muted)">{{ t['id'] }}</td>
+          <td style="font-family:'Cinzel',serif;font-size:.8rem">{{ t['username'] }}</td>
+          <td><code>{{ t['username'] }}</code></td>
+          <td><code>{{ t['lotr_user'] }}</code></td>
+          <td><code style="color:var(--gold-light)">{{ t['lotr_pass'] }}</code></td>
+          <td style="font-family:'Cinzel',serif;color:var(--gold)">
+            {{ t['score'] if t['score'] is not none else '—' }}
+          </td>
+          <td>
+            {% if t['completed'] %}
+            <span class="badge badge-done px-2 py-1" style="font-size:.7rem">Done</span>
+            {% else %}
+            <span class="badge badge-pend px-2 py-1" style="font-size:.7rem">Pending</span>
+            {% endif %}
+          </td>
+          <td style="padding-right:1rem;color:var(--muted);font-size:.75rem">
+            {{ t['completed_at'][:16] if t['completed_at'] else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if authed %}
+<script>
+function filterTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  document.querySelectorAll('#teams-table tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endif %}
+{% endblock %}

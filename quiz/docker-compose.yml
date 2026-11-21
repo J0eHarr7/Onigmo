@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  quiz:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - quiz_data:/data        # SQLite persists across restarts
+    environment:
+      DB_PATH:    /data/quiz.db
+      ADMIN_PASS: 3BLRD9P7JhcJ    # change this
+      SECRET_KEY: change-me-in-production
+    restart: unless-stopped
+
+volumes:
+  quiz_data:

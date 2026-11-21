@@ -1,0 +1,15 @@
+- name: Create quiz deployment directory
+  file:
+    path: /opt/box/quiz
+    state: directory
+    mode: '0755'
+
+- name: Copy quiz challenge source
+  copy:
+    src: "{{ playbook_dir }}/../quiz/"
+    dest: /opt/box/quiz/
+
+- name: Build and start quiz challenge
+  command: docker compose up --build -d
+  args:
+    chdir: /opt/box/quiz

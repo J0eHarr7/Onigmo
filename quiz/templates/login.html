@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Login — LOTR Quiz{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+
+    <div class="text-center mb-4">
+      <div style="font-size:3rem">💍</div>
+      <h1 class="font-lotr" style="color:var(--gold);font-size:1.6rem">The Fellowship Quiz</h1>
+      <p style="color:var(--muted);font-size:.9rem">Lord of the Rings &amp; The Hobbit</p>
+    </div>
+
+    <div class="card shadow-lg">
+      <div class="card-header py-3">
+        <span>⚔</span> Enter the Realm
+      </div>
+      <div class="card-body p-4">
+        {% if error %}
+        <div class="alert" style="background:rgba(139,26,26,.3);border:1px solid #8b1a1a;color:#e88;border-radius:3px;font-size:.85rem;padding:.6rem 1rem">
+          {{ error }}
+        </div>
+        {% endif %}
+        <form method="POST" action="/">
+          <div class="mb-3">
+            <label class="mb-1">TEAM USERNAME</label>
+            <input type="text" name="username" class="form-control"
+                   placeholder="e.g. team01" autocomplete="off" required>
+          </div>
+          <div class="mb-4">
+            <label class="mb-1">PASSWORD</label>
+            <input type="password" name="password" class="form-control"
+                   placeholder="Your team password" required>
+          </div>
+          <button type="submit" class="btn btn-gold w-100 py-2">
+            Begin the Quest →
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="text-center mt-4" style="color:var(--muted);font-size:.8rem">
+      <em>"It's a dangerous business, Frodo, going out your door."</em><br>
+      20 questions · 30 minutes · 1 chance
+    </div>
+
+  </div>
+</div>
+{% endblock %}

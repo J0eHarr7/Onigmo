@@ -19,7 +19,22 @@
           "temporary": false
         }
       ]
-    }
+    }{% for user in keycloak_lotr_users %},
+    {
+      "username": {{ user.username | to_json }},
+      "email": {{ (user.username ~ "@box.local") | to_json }},
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "LOTR",
+      "lastName": "Player",
+      "credentials": [
+        {
+          "type": "password",
+          "value": {{ user.password | to_json }},
+          "temporary": false
+        }
+      ]
+    }{% endfor %}
   ],
   "clients": [
     {
