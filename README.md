@@ -105,7 +105,7 @@ curl -s \
 
 Do not place the PAT in shell history, source control, screenshots, or shared evidence where it can leak.
 
-# Stage 3: prepare a callback bridge
+# Stage 3: prepare a callback bridge (THIS PART IS ALREADY DONE IN ANSIBLE)
 
 The GitLab PoC normally serves a stage-two payload on the control workstation. GitLab runs in a container on the target, so a callback URL must be reachable from the container back to the control workstation.
 
