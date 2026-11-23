@@ -1,4 +1,4 @@
-# Keycloak to GitLab: a chained account-takeover and CI-lint exploitation lab
+# Keycloak to GitLab: a chained account-takeover and CI-lint exploitation BOX
 
 ## Scope and prerequisites
 
